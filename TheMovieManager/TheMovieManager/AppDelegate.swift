@@ -41,5 +41,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
     
+    // handling the redirect URL for web authorization
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: true)
+        
+        if components?.scheme == "themoviemanager" && components?.path == "authenticate" {
+            let loginVC = window?.rootViewController as! LoginViewController
+            
+            // creating a sessionID after the request token is authenticated by the user
+            TMDBClient.createSessionId(completion: loginVC.handleSessionResponse(success:error:))
+        }
+        
+        return true
+    }
+    
 }
 

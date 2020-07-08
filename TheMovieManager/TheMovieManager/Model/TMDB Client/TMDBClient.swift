@@ -26,6 +26,8 @@ class TMDBClient {
         case getRequestToken
         case login
         case createSessionId
+        case webAuth
+        case logout
         
         var stringValue: String {
             switch self {
@@ -37,6 +39,11 @@ class TMDBClient {
                 return Endpoints.base + "/authentication/token/validate_with_login" + Endpoints.apiKeyParam
             case .createSessionId:
                 return Endpoints.base + "/authentication/session/new" + Endpoints.apiKeyParam
+            // themoviemanager:authenticate -> the first part is the redirect URL's scheme and the second one is the path 
+            case .webAuth:
+                return "https://www.themoviedb.org/authenticate" + "/\(Auth.requestToken)" + "?redirect_to=themoviemanager:authenticate"
+            case .logout:
+                return Endpoints.base + "/authentication/session" + Endpoints.apiKeyParam
             }
         }
         
@@ -130,6 +137,22 @@ class TMDBClient {
             } catch let jsonError {
                 completion(false, jsonError)
             }
+        }
+        task.resume()
+    }
+    
+    class func logout(completion: @escaping () -> ()) {
+        var request = URLRequest(url: Endpoints.logout.url)
+        request.httpMethod = "DELETE"
+        let logoutRequestBody = LogoutRequest(sessionId: Auth.sessionId)
+        request.httpBody = try! JSONEncoder().encode(logoutRequestBody)
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // we don't need to parse the response as the user will be logged out anyway
+        let task = URLSession.shared.dataTask(with: request) { (data, response, error) in
+            Auth.requestToken = ""
+            Auth.sessionId = ""
+            completion()
         }
         task.resume()
     }
