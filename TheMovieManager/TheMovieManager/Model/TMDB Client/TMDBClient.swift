@@ -6,13 +6,14 @@
 //  Copyright © 2018 Udacity. All rights reserved.
 //
 
-import Foundation
+import UIKit
 
 class TMDBClient {
     
     static let apiKey = "4a6f74bd7234e356db8326af54b9d9ee"
     
     struct Auth {
+        // accountId is just ignored by TMDb so it can have a value of any integer
         static var accountId = 0
         static var requestToken = ""
         static var sessionId = ""
@@ -29,6 +30,10 @@ class TMDBClient {
         case createSessionId
         case webAuth
         case logout
+        case search(String)
+        case markWatchlist
+        case markFavorite
+        case posterImageURL(String)
         
         var stringValue: String {
             switch self {
@@ -47,6 +52,15 @@ class TMDBClient {
                 return "https://www.themoviedb.org/authenticate" + "/\(Auth.requestToken)" + "?redirect_to=themoviemanager:authenticate"
             case .logout:
                 return Endpoints.base + "/authentication/session" + Endpoints.apiKeyParam
+            case .search(let query):
+                // adding percent encoding ensures that the app doesn't crash when we add a space to the url
+                return Endpoints.base + "/search/movie" + Endpoints.apiKeyParam + "&query=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+            case .markWatchlist:
+                return Endpoints.base + "/account/\(Auth.accountId)/watchlist" + Endpoints.apiKeyParam + "&session_id=\(Auth.sessionId)"
+            case .markFavorite:
+                return Endpoints.base + "/account/\(Auth.accountId)/favorite" + Endpoints.apiKeyParam + "&session_id=\(Auth.sessionId)"
+            case .posterImageURL(let posterPath):
+                return "https://image.tmdb.org/t/p/w500" + "\(posterPath)"
             }
         }
         
@@ -54,6 +68,8 @@ class TMDBClient {
             return URL(string: stringValue)!
         }
     }
+    
+    //MARK: GET Requests
     
     // a generic function that handles all the GET Requests
     // by executing the completionHandler for this function on the main thread we won't have to do that in the LoginViewController
@@ -109,6 +125,33 @@ class TMDBClient {
             }
         }
     }
+    
+    class func search(query: String, completion: @escaping ([Movie], Error?) -> Void) {
+        taskForGETRequest(url: Endpoints.search(query).url, responseType: MovieResults.self) { (response, error) in
+            if let response = response {
+                completion(response.results, nil)
+            } else {
+                completion([], error)
+            }
+        }
+    }
+    
+    class func downloadPosterImage(path: String, completion: @escaping (UIImage?, Error?) -> Void) {
+        let task = URLSession.shared.dataTask(with: Endpoints.posterImageURL(path).url) { (data, response, error) in
+            guard let data = data, error == nil else {
+                completion(nil, error)
+                return
+            }
+            let posterImage = UIImage(data: data)
+            DispatchQueue.main.async {
+                completion(posterImage, nil)
+            }
+        }
+        task.resume()
+    }
+    
+    
+    //MARK: POST Requests
     
     // another generic function that handles the tasks for POST Requests
     // extra arguments are the RequestType: Encodable, and the body parameter that requires an instance of the RequestType
@@ -177,6 +220,29 @@ class TMDBClient {
             completion()
         }
         task.resume()
+    }
+    
+    class func markWatchlist(movieId: Int, watchlist: Bool, completion: @escaping (Bool, Error?) -> Void) {
+        let markWatchlistBody = MarkWatchlist(mediaType: "movie", mediaId: movieId, watchlist: watchlist)
+        taskForPOSTRequest(url: Endpoints.markWatchlist.url, body: markWatchlistBody, responseType: TMDBResponse.self) { (response, error) in
+            if let response = response {
+                // we have to write for all the three cases as the response is successfull in all three for TMDb
+                completion(response.statusCode == 1 || response.statusCode == 12 || response.statusCode == 13, nil)
+            } else {
+                completion(false, error)
+            }
+        }
+    }
+    
+    class func markFavorite(movieId: Int, favorite: Bool, completion: @escaping (Bool, Error?) -> Void) {
+        let markFavoriteBody = MarkFavorite(mediaType: "movie", mediaId: movieId, favorite: favorite)
+        taskForPOSTRequest(url: Endpoints.markFavorite.url, body: markFavoriteBody, responseType: TMDBResponse.self) { (response, error) in
+            if let response = response {
+                completion(response.statusCode == 1 || response.statusCode == 12 || response.statusCode == 13, nil)
+            } else {
+                completion(false, error)
+            }
+        }
     }
     
 }

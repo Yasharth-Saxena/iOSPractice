@@ -8,7 +8,7 @@
 
 import Foundation
 
-struct MovieResults: Codable {
+struct MovieResults: Decodable {
     
     let page: Int
     let results: [Movie]

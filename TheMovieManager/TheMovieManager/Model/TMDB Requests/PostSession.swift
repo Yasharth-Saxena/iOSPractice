@@ -8,7 +8,7 @@
 
 import Foundation
 
-struct PostSession: Codable {
+struct PostSession: Encodable {
     let requestToken: String
     
     enum CodingKeys: String, CodingKey {

@@ -8,7 +8,7 @@
 
 import Foundation
 
-struct LogoutRequest: Codable {
+struct LogoutRequest: Encodable {
     let sessionId: String
     
     enum CodingKeys: String, CodingKey {
