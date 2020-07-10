@@ -10,7 +10,7 @@ import UIKit
 
 class TMDBClient {
     
-    static let apiKey = "4a6f74bd7234e356db8326af54b9d9ee"
+    static let apiKey = ""
     
     struct Auth {
         // accountId is just ignored by TMDb so it can have a value of any integer
@@ -73,7 +73,7 @@ class TMDBClient {
     
     // a generic function that handles all the GET Requests
     // by executing the completionHandler for this function on the main thread we won't have to do that in the LoginViewController
-    class func taskForGETRequest<ResponseType: Decodable>(url: URL, responseType: ResponseType.Type, completion: @escaping (ResponseType?, Error?) -> Void) {
+    @discardableResult class func taskForGETRequest<ResponseType: Decodable>(url: URL, responseType: ResponseType.Type, completion: @escaping (ResponseType?, Error?) -> Void) -> URLSessionTask {
         let task = URLSession.shared.dataTask(with: url) { (data, response, error) in
             guard let data = data, error == nil else {
                 DispatchQueue.main.async {
@@ -86,13 +86,21 @@ class TMDBClient {
                 DispatchQueue.main.async {
                     completion(responseObject, nil)
                 }
-            } catch let jsonError {
-                DispatchQueue.main.async {
+            } catch {
+                // handling the errors specific to TMDb
+                do {
+                    let errorResponse = try JSONDecoder().decode(TMDBResponse.self, from: data)
+                    DispatchQueue.main.async {
+                        completion(nil, errorResponse)
+                    }
+                } catch let jsonError{
                     completion(nil, jsonError)
                 }
             }
         }
         task.resume()
+        
+        return task
     }
     
     class func getWatchlist(completion: @escaping ([Movie], Error?) -> Void) {
@@ -126,14 +134,15 @@ class TMDBClient {
         }
     }
     
-    class func search(query: String, completion: @escaping ([Movie], Error?) -> Void) {
-        taskForGETRequest(url: Endpoints.search(query).url, responseType: MovieResults.self) { (response, error) in
+    class func search(query: String, completion: @escaping ([Movie], Error?) -> Void) -> URLSessionTask {
+        let task = taskForGETRequest(url: Endpoints.search(query).url, responseType: MovieResults.self) { (response, error) in
             if let response = response {
                 completion(response.results, nil)
             } else {
                 completion([], error)
             }
         }
+        return task 
     }
     
     class func downloadPosterImage(path: String, completion: @escaping (UIImage?, Error?) -> Void) {
@@ -173,8 +182,13 @@ class TMDBClient {
                 DispatchQueue.main.async {
                     completion(responseObject, nil)
                 }
-            } catch let jsonError {
-                DispatchQueue.main.async {
+            } catch {
+                do {
+                    let errorResponse = try JSONDecoder().decode(TMDBResponse.self, from: data)
+                    DispatchQueue.main.async {
+                        completion(nil, errorResponse)
+                    }
+                } catch let jsonError {
                     completion(nil, jsonError)
                 }
             }
